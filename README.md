@@ -1,2 +1,3 @@
 # IMDb-Top250-Movies
-Analysis of the Top-250 Movies in IMDb.
+This repository contains an analysis of the Top-250 Movies in IMDb. 
+The data is taken from: https://www.imdb.com/chart/top/
