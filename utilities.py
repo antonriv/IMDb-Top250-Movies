@@ -1,4 +1,4 @@
-# version 1.0
+# version 1.1
 
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -273,7 +273,7 @@ def scrape_directors():
             
 def scrape_reviews():
     """
-    Scraps two reviews from the top 250 movie ranks in the website 'https://www.imdb.com/chart/top/' and stores them into a csv file
+    Scraps reviews from the top 250 movie ranks in the website 'https://www.imdb.com/chart/top/' and stores them into a csv file
     """
     response = requests.get('https://www.imdb.com/chart/top/')
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -285,7 +285,7 @@ def scrape_reviews():
         movie_response = requests.get(movie_url, headers={'Accept-Language': 'en-US,en;q=0.8', 'User-Agent': random.choice(user_agents_list)})
         movie_soup = BeautifulSoup(movie_response.text, 'html.parser')
         
-        # Scrap through labels to find Reviews info
+        # 8 - Scrap through labels to find Reviews info
         reviews_0 = movie_soup.find('div', class_='ipc-overflowText ipc-overflowText--listCard ipc-overflowText--height-long ipc-overflowText--long ipc-overflowText--click ipc-overflowText--base')
 
         # Reviews
@@ -299,3 +299,104 @@ def scrape_reviews():
         writer = csv.writer(csvfile)
         for movie in movies:
             writer.writerow(movie)
+
+def scrape_profits():
+    """
+    Scraps the top-250 movie box offices and budgets from the website 'https://www.imdb.com/chart/top/' and stores them into a csv file
+    """
+    response = requests.get('https://www.imdb.com/chart/top/')
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    movies = []
+    # Iterate over each movie url from the website
+    for movie in soup.select('.lister-list tr'):
+        movie_url = 'https://www.imdb.com' + movie.select_one('.titleColumn a')['href']
+        movie_response = requests.get(movie_url, headers={'Accept-Language': 'en-US,en;q=0.8', 'User-Agent': random.choice(user_agents_list)})
+        movie_soup = BeautifulSoup(movie_response.text, 'html.parser')
+        
+        # [9] - Scrap through labels to find Box Office info
+        box_office_0 = movie_soup.find_all('li', attrs={'data-testid': 'title-boxoffice-cumulativeworldwidegross'})
+
+        # Box Office
+        box_office = None  # Default value
+        for box_0 in box_office_0:  # Use two loops to ignore multiple empty labels in the webpage
+            if box_0.text != None:
+                box_1 = box_0.find_all('span', class_='ipc-metadata-list-item__list-content-item')
+                for box in box_1:
+                    if box.text != None:
+                        box_office = box.text
+                        break
+                else:
+                    # Continue if the inner loop wasn't broken
+                    continue
+                # Inner loop was broken, break the outer
+                break
+        
+        # [10] - Scrap through labels to find Budget info
+        budget_0 = movie_soup.find_all('li', attrs={'data-testid': 'title-boxoffice-budget'})
+        
+        # Budget
+        budget = None  # Default value
+        for b_0 in budget_0:  # Use two loops to ignore multiple empty labels in the webpage
+            if b_0.text != None:
+                b_1 = b_0.find_all('span', class_='ipc-metadata-list-item__list-content-item')
+                for b in b_1:
+                    if b.text != None:
+                        budget = ''.join(b.text.split()[:-1])
+                        break
+                else:
+                    # Continue if the inner loop wasn't broken
+                    continue
+                # Inner loop was broken, break the outer
+                break
+               
+        # [11] - Scrap through labels to find Year info
+        year = movie.find('span', class_='secondaryInfo').text[1:-1]
+        
+        # Append to list of movies
+        movies.append([box_office, budget, year])
+
+    # Write the movie information to a CSV file with UTF-8 encoding
+    with open('staging/profits.csv', 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        for movie in movies:
+            writer.writerow(movie)
+
+# Dictionary of selected currency symbols and their ISO 4217 equivalents
+currency_dictionary = {
+    'symbol':['$', '¥', 'R$', '€', '₹', '£', 'A$', '₩'],
+    'ISO4217':['USD', 'JPY','BRL','EUR', 'INR', 'GBP', 'AUD', 'KRW']
+}
+
+iso_standard = dict(zip(currency_dictionary['symbol'], currency_dictionary['ISO4217']))
+
+# Exchange rates in USD for selected currencies and years
+exchange_rates_in_usd = {
+    ('AUD',2009): 0.90,
+    ('BRL',2002): 0.2755,
+    ('DEM',1927): 1/4.2,
+    ('DEM',1981): 1/1.975,
+    ('EUR',2004): 1.36,
+    ('EUR',2011): 1.29,
+    ('FRF',1994): 1/5.3895,
+    ('GBP',1975): 2.02,
+    ('GBP',1996): 1.71,
+    ('GBP',1998): 1.66,
+    ('GBP',2000): 1.50,
+    ('INR',2016): 1/67.1953,
+    ('INR',2009): 1/48.4053,
+    ('JPY',1954): 1/360,
+    ('JPY',1997): 1/130.45,
+    ('JPY',2016): 1/116.96,
+    ('KRW',2016): 1/1160
+}
+
+def to_usd(currency, year, amount):
+    if currency == 'USD':
+        return amount
+    # Amounts given in EUR calculated before the year 2000 are set to 1 USD exchange rate
+    if currency == 'EUR' and year < 2000:
+        return amount
+    else:
+        return round(exchange_rates_in_usd[(currency, year)] * amount)  # round to whole usd
+        
